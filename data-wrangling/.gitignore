@@ -1,1 +1,7 @@
-venv
+# Ignore virtual environment folders
+# Set up yout own: python -m venv venv
+venv 
+
+# Ignore Neo4J database files
+neo4j
+
