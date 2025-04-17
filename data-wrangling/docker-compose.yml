@@ -7,7 +7,7 @@ services:
         - ./neo4j/data:/data
         - ./neo4j/plugins:/plugins
     environment:
-        - NEO4J_AUTH=neo4j/Admin123!
+        - NEO4J_AUTH=neo4j/afadfpafgkaeopdfafawefaefggergtaefaaw179y4710gdf0172dh9
     ports:
       - "7474:7474"
       - "7687:7687"

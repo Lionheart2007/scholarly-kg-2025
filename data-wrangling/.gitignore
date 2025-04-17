@@ -5,3 +5,5 @@ venv
 # Ignore Neo4J database files
 neo4j
 
+*.pyc 
+
