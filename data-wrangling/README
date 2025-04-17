@@ -1,0 +1,6 @@
+Init python venv: python3 -m venv venv
+Activate venv: 
+- Linux: source venv/bin/activate
+- Windows: ./venv/Scripts/activate
+Install requirements: pip install -r requirements.txt
+Run the script: python3 <filename>.py
