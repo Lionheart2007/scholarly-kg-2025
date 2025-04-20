@@ -1,35 +1,37 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import "./App.css";
+import useGraph, { StateGraph } from "./state/useGraph";
+import { GraphView } from "./components/graph-view";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const change = useGraph((state: StateGraph) => state.change);
+  const graph = useGraph((state: StateGraph) => state.graph);
+
+  const onclick = () => {
+    graph.addNode(graph.nodes().length ?? 0, {
+      x: 10 * Math.random(),
+      y: 10 * Math.random(),
+      size: 15,
+      label: graph.nodes().length,
+      color: "#FA4F40",
+    });
+    change();
+  };
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <button onClick={onclick}>Click me</button>
+      <div
+        style={{
+          height: "100vh",
+          width: "100vw",
+          borderWidth: "1px",
+          borderColor: "black",
+        }}
+      >
+        <GraphView></GraphView>;
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
