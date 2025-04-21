@@ -1,3 +1,4 @@
+import LoadFaculties from "../../modules/loadFaculty";
 import useGraph, { StateGraph } from "../../state/useGraph";
 
 const SideMenu = () => {
@@ -16,9 +17,10 @@ const SideMenu = () => {
 
   return (
     <div
-      className={` h-[100vh] w-[50vw]  bg-white border border-gray-300 shadow-lg`}
+      className={` h-[100vh] w-[50vw]  bg-white border border-gray-300 shadow-lg p-4 flex flex-col items-start`}
     >
       <button onClick={onclick}>Click me</button>
+      <LoadFaculties></LoadFaculties>
     </div>
   );
 };
