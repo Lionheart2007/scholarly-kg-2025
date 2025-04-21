@@ -1,36 +1,28 @@
 import "./App.css";
-import useGraph, { StateGraph } from "./state/useGraph";
 import { GraphView } from "./components/graph-view";
+import { useState } from "react";
+import SideMenu from "./components/side-menu/side-menu";
 
 function App() {
-  const change = useGraph((state: StateGraph) => state.change);
-  const graph = useGraph((state: StateGraph) => state.graph);
-
-  const onclick = () => {
-    graph.addNode(graph.nodes().length ?? 0, {
-      x: 10 * Math.random(),
-      y: 10 * Math.random(),
-      size: 15,
-      label: graph.nodes().length,
-      color: "#FA4F40",
-    });
-    change();
-  };
+  const [menuIsVisible, setMenuIsVisible] = useState(false);
 
   return (
-    <>
-      <button onClick={onclick}>Click me</button>
+    <div className="relative">
       <div
-        style={{
-          height: "100vh",
-          width: "100vw",
-          borderWidth: "1px",
-          borderColor: "black",
-        }}
+        className={`absolute top-0 left-0  transition-transform z-100 ${
+          !menuIsVisible ? "-translate-x-full" : ""
+        }`}
       >
-        <GraphView></GraphView>;
+        <button
+          onClick={() => setMenuIsVisible((prev) => !prev)}
+          className="absolute right-0 bg-white p-2 translate-x-[99%] border border-l-0 rounded-r-lg border-gray-300 translate-y-2 flex items-center"
+        >
+          <span className="material-symbols-rounded text-gray-400">menu</span>
+        </button>
+        <SideMenu></SideMenu>
       </div>
-    </>
+      <GraphView></GraphView>;
+    </div>
   );
 }
 
