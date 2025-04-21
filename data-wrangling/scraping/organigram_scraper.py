@@ -1,75 +1,165 @@
 import requests
 from tiss_api import *
+from dotenv import load_dotenv
+import os
 from neo4j_database_operations import *
+import re
+import time
+import json
 
-def fetch_data_from_api(api_url):
+load_dotenv()
+
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+NEO4J_URI = os.getenv("NEO4J_URI")
+
+db = Neo4jDatabase(NEO4J_URI, (NEO4J_USERNAME, NEO4J_PASSWORD))
+
+def fetch_data_from_api(api_url, params=None):
     """Fetches data from the given REST API URL."""
     try:
         response = requests.get(api_url)
         response.raise_for_status()  
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data from {api_url}: {e}")
+        print(f"Error fetching data from {api_url}: {e}, for params: {params}")
         return None
+    
+def clean_symbols(label):
+    """Cleans the label by replacing spaces with underscores and removing unwanted characters."""
+    label = re.sub(r"[^\w\s]", "", label)  # Remove all non-alphanumeric characters except spaces
+    label = label.replace(" ", "_")  
+    return label
+
+def remove_umlauts(text):
+    translation_map = {
+        ord('ä'): 'ae',
+        ord('ö'): 'oe',
+        ord('ü'): 'ue',
+        ord('ß'): 'ss',
+        ord('Ä'): 'Ae',
+        ord('Ö'): 'Oe',
+        ord('Ü'): 'Ue'
+    }
+    trans_table = str.maketrans(translation_map)
+    label = text.translate(trans_table)
+    return label
+
+def process_employee(employee, org_label, org_oid):    
+        """
+        Processes each employee by fetching their data and adding them to the database.
+        """
+        person_id = employee['oid']
+        fetched_person_data = fetch_data_from_api(get_api_url_person_id(person_id))  
+        
+        person_data = {
+            "id": employee['oid'],
+            "first_name": employee['first_name'],
+            "last_name": employee['last_name'],
+            "preceding_titles": employee['preceding_titles'],
+            "postpositioned_titles": employee['postpositioned_titles'],
+            "picture_link": employee['picture_uri'],
+            "phone_number": employee.get('phone_numbers', [None])[0],
+            "email": employee['main_email'],
+        }
+
+        if not db.node_exists(f"Person_{person_id}"):
+            db.add_node(f"Person_{person_id}", person_data)
+        
+        if fetched_person_data:
+            for role in fetched_person_data['employee']:
+
+                function_group = role['function_group_tiss_id']
+                function_group_label = f"Function_{function_group}_{org_oid}"
+                function_group_relation = "DELEGATION"
+
+                if not db.node_exists(function_group_label):
+                    db.add_node(function_group_label, {"name": role['display_function_group']})
+                    db.add_relationship(org_label, function_group_label, function_group_relation)
+                
+                db.add_relationship_if_not_exists(
+                    f"Person_{person_id}", 
+                    function_group_label, 
+                    "ROLE", 
+                    {'name': role['display_function_group']}
+                )
+        
+def add_people_to_org_einheit(org_oid, org_label):
+
+    api_url = get_api_url_orgunit_id(org_oid, persons=True, recursive=True, intern=True)
+    orgunit_data = fetch_data_from_api(api_url, {"oid": org_oid})
+    employees = orgunit_data.get('employees', [])
+    for employee in employees:
+        process_employee(employee, org_label, org_oid)
+
+def add_org_nodes(faculty_data, fac_label):
+            db.add_node(fac_label, 
+            {"id_number": faculty_data['oid'],
+             "name": faculty_data['name_en'],
+             "phone_numbers": faculty_data.get('phone_numbers', []),
+             "website": json.dumps(faculty_data.get('websites', [])),
+             "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else json.dumps(faculty_data.get('emails', [])),
+             "address": json.dumps([
+                 {
+                 "street": remove_umlauts(address.get("street")),
+                 "zip_code": address.get("zip_code"),
+                 "city": remove_umlauts(address.get("city")),
+                 "country": remove_umlauts(address.get("country")),
+                 "co": address.get("co")
+                 } for address in faculty_data.get('addresses', [])
+             ])
+        })
+
+def add_faculties_to_graph(raw_data):
+    orgs = raw_data['children']
+    for faculty in orgs:
+        fac_label = clean_symbols(faculty['code'])
+
+        faculty_data = fetch_data_from_api(get_api_url_orgunit_id(faculty['oid']))
+        if not faculty_data:
+            continue
+        add_org_nodes(faculty_data, fac_label)
+        print(f"{faculty_data['name_en']}")
+
+        if "child_orgs_refs" in faculty_data:
+            for institution in faculty_data['child_orgs_refs']:
+                inst_label = clean_symbols(institution['code'])
+                institution_data = fetch_data_from_api(get_api_url_orgunit_id(institution['oid']))
+                if not institution_data:
+                    continue
+                add_org_nodes(institution_data, inst_label)
+                db.add_relationship(fac_label, inst_label, "HAS_INSTITUTION")
+                print(f"  {institution['name_en']}")
+                add_people_to_org_einheit(institution['oid'], inst_label)
+                if "child_orgs_refs" in institution_data:
+                    for department in institution_data['child_orgs_refs']:
+                        dep_label = clean_symbols(department['code'])
+                        department_data = fetch_data_from_api(get_api_url_orgunit_id(department['oid']))
+                        if not department_data:
+                            continue
+                        add_org_nodes(department_data, dep_label)
+                        db.add_relationship(inst_label, dep_label, "HAS_DEPARTMENT")
+                        print(f"    {department['name_en']}")
+                        add_people_to_org_einheit(department['oid'], dep_label)
+                        if "child_orgs_refs" in department_data:
+                            for research_group in department_data['child_orgs_refs']:
+                                rg_label = clean_symbols(research_group['code'])
+                                research_group_data = fetch_data_from_api(get_api_url_orgunit_id(research_group['oid']))
+                                if not research_group_data:
+                                    continue
+                                add_org_nodes(research_group_data, rg_label)
+                                db.add_relationship(dep_label, rg_label, "HAS_RESEARCH_GROUP")
+                                print(f"      {research_group['name_en']}")
+                                add_people_to_org_einheit(research_group['oid'], rg_label)
+
 
 raw_data = fetch_data_from_api(api_url_organigram.format())
-seniorGovBodies = raw_data['children']
+start_time = time.time()
 
-faculties = [x for x in seniorGovBodies if x['name_de'].startswith('Fak')]
-print(len(faculties))
+db.clear_database()
+print("Database cleared.")
+add_faculties_to_graph(raw_data)
 
-clear_database()
+end = time.time()
 
-
-def add_people_to_org_einheit(org_oid, org_label, org_type):
-    api_url = get_api_url_orgunit_id(org_oid, persons=True, recursive=True, intern=True)
-    orgunit_data = fetch_data_from_api(api_url)
-    if orgunit_data:
-        for person in orgunit_data['employees']:
-            person_id = person['oid']
-            add_node(f"Person_{person_id}", {
-                "first_name": person['first_name'],
-                "last_name": person['last_name'],
-                "id": person_id,
-                "tiss_id": person.get('tiss_id'),
-                "oid": person.get('oid'),
-                "old_tiss_ids": person.get('old_tiss_ids', []),
-                "pseudoperson": person.get('pseudoperson'),
-                "preceding_titles": person.get('preceding_titles'),
-                "postpositioned_titles": person.get('postpositioned_titles'),
-                "orcid": person.get('orcid'),
-                "card_uri": person.get('card_uri'),
-                "picture_uri": person.get('picture_uri'),
-                "main_phone_number": person.get('main_phone_number'),
-                "main_email": person.get('main_email'),
-                "other_emails": person.get('other_emails', []),
-                "additional_infos": person.get('additional_infos', []),
-                "function_tiss_id": person.get('function_tiss_id'),
-                "display_function": person.get('display_function'),
-                "function_group_tiss_id": person.get('function_group_tiss_id'),
-                "display_function_group": person.get('display_function_group')
-            })
-            add_relationship(f"{org_type}{org_oid}", f"Person_{person_id}", "HAS_PERSON")
-
-
-def add_faculties_to_graph(faculties):
-    for faculty in faculties:
-        add_node(f"Faculty_{faculty['oid']}", 
-                 {"name": faculty['name_en'], "id": faculty['oid']})
-        if "children" in faculty:
-            for institution in faculty['children']:
-                add_node(f"Institution_{institution['oid']}", {"name": institution['name_en'], "id": institution['oid']})
-                add_relationship(f"Faculty_{faculty['oid']}", f"Institution_{institution['oid']}", "HAS_INSTITUTION")
-                add_people_to_org_einheit(institution['oid'], institution['name_en'], "Institution_")
-                if "children" in institution:
-                    for department in institution['children']:
-                        add_node(f"Department_{department['oid']}", {"name": department['name_en'], "id": department['oid']})
-                        add_relationship(f"Institution_{institution['oid']}", f"Department_{department['oid']}", "HAS_DEPARTMENT")
-                        add_people_to_org_einheit(department['oid'], department['name_en'], "Department_")
-                        if "children" in department:
-                            for research_group in department['children']:
-                                add_node(f"ResearchGroup_{research_group['oid']}", {"name": research_group['name_en'], "id": research_group['oid']})
-                                add_relationship(f"Department_{department['oid']}", f"ResearchGroup_{research_group['oid']}", "HAS_RESEARCH_GROUP")
-                                add_people_to_org_einheit(research_group['oid'], research_group['name_en'], "ResearchGroup_")
-
-add_faculties_to_graph(faculties)
+print("Time taken in hh:mm:ss:", time.strftime("%H:%M:%S", time.gmtime(end - start_time)))

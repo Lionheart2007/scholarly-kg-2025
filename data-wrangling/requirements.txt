@@ -4,6 +4,7 @@ idna==3.10
 neo4j==5.28.1
 py4j==0.10.9.7
 pyspark==3.5.5
+python-dotenv==1.1.0
 pytz==2025.2
 requests==2.32.3
 urllib3==2.4.0
