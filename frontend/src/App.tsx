@@ -1,5 +1,5 @@
 import "./App.css";
-import { GraphView } from "./components/graph-view";
+import { GraphView } from "./components/graph-viewer/graph-view";
 import { useState } from "react";
 import SideMenu from "./components/side-menu/side-menu";
 

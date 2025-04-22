@@ -12,9 +12,11 @@
   "dependencies": {
     "@react-sigma/core": "^5.0.2",
     "@react-sigma/layout-force": "^5.0.2",
+    "@react-sigma/layout-forceatlas2": "^5.0.2",
     "@tailwindcss/vite": "^4.1.4",
     "@tanstack/react-query": "^5.74.4",
     "graphology": "^0.25.4",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "graphology-types": "^0.24.8",
     "material-symbols": "^0.31.2",
     "react": "^19.0.0",

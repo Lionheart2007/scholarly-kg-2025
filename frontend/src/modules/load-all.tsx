@@ -12,39 +12,46 @@ const LoadFaculties = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query: "MATCH (u: University)<-[b:BELONGS_TO]-(f: Faculty)",
+          query: "MATCH (n)-[r]->(m)",
 
           node_mappings: {
-            university: "u",
-            faculty: "f",
+            n: "n",
+            m: "m",
           },
 
           edge_mappings: {
-            belongs_to: "b",
+            r: "r",
           },
         }),
       })
     ).json();
 
-    const university = data.nodes.university[0];
-    graph.mergeNode(university.id, {
-      x: Math.random() * 10,
-      y: Math.random() * 10,
-      size: 15,
-      label: university.properties.name,
-    });
+    console.log(data);
 
-    const faculties = data.nodes.faculty;
-    for (const faculty of faculties) {
+    const n = data.nodes.n;
+    for (const nEntity of n) {
+      graph.mergeNode(nEntity.id, {
+        x: Math.random(),
+        y: Math.random(),
+        size: 5,
+        label: nEntity.properties.name,
+      });
+    }
+
+    const m = data.nodes.m;
+    for (const faculty of m) {
+      if (faculty.id == undefined) continue;
       graph.mergeNode(faculty.id, {
-        x: Math.random() * 10,
-        y: Math.random() * 10,
-        size: 15,
+        x: Math.random(),
+        y: Math.random(),
+        size: 5,
         label: faculty.properties.name,
       });
     }
 
-    for (const belongsTo of data.edges.belongs_to) {
+    for (const belongsTo of data.edges.r) {
+      if (!graph.hasNode(belongsTo.start)) continue;
+      if (!graph.hasNode(belongsTo.end)) continue;
       graph.mergeEdge(belongsTo.start, belongsTo.end);
     }
 
