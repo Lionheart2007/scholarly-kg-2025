@@ -101,11 +101,9 @@ class Neo4jDatabase:
             result = session.run(query, start_id=start_id, end_id=end_id)
             return result.single()[0]
             
-        
     def add_relationship_if_not_exists(self, start_node, end_node, relationship_type, properties=None):
         """
-        Adds a relationship between two nodes if it does not already exist.
-
+        Adds a relationship between two nodes if it does not already exist. 
         :param start_node: The start node or its ID
         :param end_node: The end node or its ID
         :param relationship_type: Type of relationship to create
@@ -113,7 +111,24 @@ class Neo4jDatabase:
         """
         # Get IDs from nodes if nodes are passed
         start_id = start_node.get('id') if isinstance(start_node, dict) else start_node
-        end_id = end_node.get('id') if isinstance(end_node, dict) else end_node
-        
-        if not self.relationship_exists(start_id, end_id, relationship_type):
-            self.add_relationship(start_id, end_id, relationship_type, properties)
+        end_id = end_node.get('id') if isinstance(end_node, dict) else end_node 
+        if properties:
+            props = ', '.join([f'{k}: ${k}' for k in properties.keys()])
+            query = f"""
+            MATCH (a), (b)
+            WHERE a.id = $start_id AND b.id = $end_id
+            MERGE (a)-[r:{relationship_type} {{ {props} }}]->(b)
+            """
+        else:
+            query = f"""
+            MATCH (a), (b)
+            WHERE a.id = $start_id AND b.id = $end_id
+            MERGE (a)-[:{relationship_type}]->(b)
+            """ 
+        params = {
+            'start_id': start_id,
+            'end_id': end_id,
+            **(properties or {})
+        }   
+        with self.driver.session() as session:
+            session.run(query, **params)

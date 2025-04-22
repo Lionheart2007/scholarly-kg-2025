@@ -73,22 +73,26 @@ def process_employee(employee, org_label, org_oid):
         
         if fetched_person_data:
             for role in fetched_person_data['employee']:
+                print(f"                {role['display_function_group']}")
                 function_group_relation = "DELEGATION"
-                id = (f"{role['function_tiss_id']}_{org_oid}")
+                function_id = (f"{role['function_group_tiss_id']}_{org_oid}")
                 function_properties = {
-                    "id": id,
-                    "abbreviation": role['function_tiss_id'],
+                    "id": function_id,
+                    "abbreviation": role['function_group_tiss_id'],
                     "org_id": org_oid,
                     "name": role['display_function_group']
                 }
 
-                if not db.node_exists(id):
+                if not db.node_exists(function_id):
+                    relation_properties = {
+                        "display_function": role['display_function'],
+                    }
                     db.add_node(label_function, function_properties)
-                    db.add_relationship(org_oid, id, function_group_relation)
+                    db.add_relationship(org_oid, function_id, function_group_relation, relation_properties)
                 
                 db.add_relationship_if_not_exists(
+                    function_id, 
                     person_id, 
-                    id, 
                     "ROLE", 
                     {'name': role['display_function_group']}
                 )
@@ -129,6 +133,7 @@ def add_faculties_to_graph(raw_data):
         if not faculty_data:
             continue
         add_org_nodes(faculty_data, fac_label)
+        add_people_to_org_einheit(faculty['oid'], fac_label)
         print(f"{faculty_data['name_en']}")
 
         if "child_orgs_refs" in faculty_data:
