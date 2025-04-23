@@ -19,14 +19,6 @@ class Neo4jDatabase:
             session.run(query, **properties)
 
     def add_relationship(self, start_node, end_node, relationship_type, properties=None):
-        """
-        Adds a relationship between two nodes in the database with optional properties.
-
-        :param start_node: The start node or its ID
-        :param end_node: The end node or its ID
-        :param relationship_type: Type of the relationship
-        :param properties: Dictionary of properties for the relationship (optional)
-        """
         if properties:
             props = ', '.join([f'{k}: ${k}' for k in properties.keys()])
             query = f"""
@@ -54,6 +46,34 @@ class Neo4jDatabase:
         with self.driver.session() as session:
             session.run(query, **params)
 
+    def add_relationship_with_code(self, start_node, end_node, relationship_type, properties=None):
+        if properties:
+            props = ', '.join([f'{k}: ${k}' for k in properties.keys()])
+            query = f"""
+            MATCH (a), (b)
+            WHERE a.code = $start_code AND b.code = $end_code
+            CREATE (a)-[r:{relationship_type} {{ {props} }}]->(b)
+            """
+        else:
+            query = f"""
+            MATCH (a), (b)
+            WHERE a.code = $start_code AND b.code = $end_code
+            CREATE (a)-[:{relationship_type}]->(b)
+            """
+        
+        # If nodes are passed directly, get their codes
+        start_code = start_node.get('code') if isinstance(start_node, dict) else start_node
+        end_code = end_node.get('code') if isinstance(end_node, dict) else end_node
+        
+        params = {
+            'start_code': start_code,
+            'end_code': end_code,
+            **(properties or {})
+        }
+        
+        with self.driver.session() as session:
+            session.run(query, **params)
+
     def clear_database(self):
         """
         Clears the entire database by deleting all nodes and relationships.
@@ -63,9 +83,8 @@ class Neo4jDatabase:
 
     def node_exists(self, id):
         """
-        Checks if a node with the specified label exists in the database.
-
-        :param label: Label of the node
+        Checks if a node with the given ID exists in the database.
+        :param id: ID of the node
         :return: True if the node exists, False otherwise
         """
         query = f"MATCH (n) WHERE n.id = $id RETURN COUNT(n) > 0 AS exists"
@@ -73,8 +92,6 @@ class Neo4jDatabase:
             result = session.run(query, id=id)
             return result.single()["exists"]
  
-
-        
     def relationship_exists(self, start_id, end_id, relationship_type=None):
         """
         Check if a relationship exists between nodes with given IDs.
@@ -112,6 +129,7 @@ class Neo4jDatabase:
         # Get IDs from nodes if nodes are passed
         start_id = start_node.get('id') if isinstance(start_node, dict) else start_node
         end_id = end_node.get('id') if isinstance(end_node, dict) else end_node 
+        
         if properties:
             props = ', '.join([f'{k}: ${k}' for k in properties.keys()])
             query = f"""
@@ -123,8 +141,9 @@ class Neo4jDatabase:
             query = f"""
             MATCH (a), (b)
             WHERE a.id = $start_id AND b.id = $end_id
-            MERGE (a)-[:{relationship_type}]->(b)
-            """ 
+            MERGE (a)-[r:{relationship_type}]->(b)
+            """
+        
         params = {
             'start_id': start_id,
             'end_id': end_id,
