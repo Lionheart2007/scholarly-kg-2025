@@ -90,11 +90,24 @@ def process_employee(employee, org_label, org_oid):
                     db.add_node(label_function, function_properties)
                     db.add_relationship(org_oid, function_id, function_group_relation, relation_properties)
                 
+                function_org_id = role.get('org_ref', {}).get('code', None)
+                display_function = role.get('display_function', None)
+                function_relation_id = f"{function_org_id}_{display_function}"
+
+                relationship_properties = {
+                    'id': function_relation_id,
+                    'name': role['display_function_group']
+                }
+                if role.get('websites'):
+                    relationship_properties["website"] = json.dumps(role['websites'])
+
+
+
                 db.add_relationship_if_not_exists(
                     function_id, 
                     person_id, 
                     "ROLE", 
-                    {'name': role['display_function_group']}
+                    relationship_properties
                 )
         
 def add_people_to_org_einheit(org_oid, org_label):
@@ -106,22 +119,21 @@ def add_people_to_org_einheit(org_oid, org_label):
         process_employee(employee, org_label, org_oid)
 
 def add_org_nodes(faculty_data, fac_label):
-            db.add_node(label_organisation,
-            {"id": faculty_data['oid'],
-             "name": faculty_data['name_en'],
-             "phone_numbers": faculty_data.get('phone_numbers', []),
-             "website": json.dumps(faculty_data.get('websites', [])),
-             "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else json.dumps(faculty_data.get('emails', [])),
-             "address": json.dumps([
-                 {
-                 "street": remove_umlauts(address.get("street")),
-                 "zip_code": address.get("zip_code"),
-                 "city": remove_umlauts(address.get("city")),
-                 "country": remove_umlauts(address.get("country")),
-                 "co": address.get("co")
-                 } for address in faculty_data.get('addresses', [])
-             ])
-        })
+            node_data = {
+                "id": faculty_data['oid'],
+                "id_number": faculty_data['code'],
+                "name": faculty_data['name_en'],
+                "phone_numbers": faculty_data.get('phone_numbers', []),
+                "website": json.dumps(faculty_data.get('websites', [])) if faculty_data.get('websites') else None,
+                "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else (json.dumps(faculty_data.get('emails', [])) if faculty_data.get('emails') else None),
+                "address": "; ".join([
+                    f"{remove_umlauts(address.get('street', ''))}, {address.get('zip_code', '')} {remove_umlauts(address.get('city', ''))}, {remove_umlauts(address.get('country', ''))}, c/o {address.get('co', '')}".strip(", ")
+                    for address in faculty_data.get('addresses', [])
+                ]) if faculty_data.get('addresses') else None
+            }
+            # Remove keys with None values
+            node_data = {k: v for k, v in node_data.items() if v is not None}
+            db.add_node(label_organisation, node_data)
 
 def add_faculties_to_graph(raw_data):
     orgs = raw_data['children']
