@@ -72,61 +72,57 @@ def process_employee(employee, org_oid, org_code):
         # Initial add none existing person
         if not db.node_exists(person_id):
             db.add_node(LABEL_PERSON, person_properties)
-        
-        # Add function relationships to the person
-        if True:
-            #for role in fetched_person_data['employee']:
-                
-                function_tiss_id = employee.get('function_tiss_id', None)
-                display_function = employee.get('display_function', None)
+                        
+        function_tiss_id = employee.get('function_tiss_id', None)
+        display_function = employee.get('display_function', None)
     
-                function_group_tiss_id = employee.get('function_group_tiss_id', None)
-                display_function_group = employee.get('display_function_group', None)
+        function_group_tiss_id = employee.get('function_group_tiss_id', None)
+        display_function_group = employee.get('display_function_group', None)
     
-                # composite key for the function
-                function_id = (f"{org_code}_{display_function}".replace(" ", "_") if display_function else None)
+        # composite key for the function
+        function_id = (f"{org_code}_{display_function}".replace(" ", "_") if display_function else None)
     
-                # Add function node if it doesn't exist
-                if not db.node_exists(function_id):
-                    general_function_properties = {
-                        "id": function_id,
-                        "abbreviation": function_group_tiss_id,
-                        "name": display_function_group,
-                    }
+        # Add function node if it doesn't exist
+        if not db.node_exists(function_id):
+            general_function_properties = {
+                "id": function_id,
+                "abbreviation": function_group_tiss_id,
+                "name": display_function_group,
+            }
     
-                    general_relation_properties = {
-                        "display_function": display_function,
-                        "function_tiss_id": function_tiss_id,
-                    }
+            general_relation_properties = {
+                "display_function": display_function,
+                "function_tiss_id": function_tiss_id,
+            }
     
-                    db.add_node(LABEL_FUNCTION, general_function_properties)
-                    db.add_relationship(
-                         org_oid, 
-                         function_id, 
-                         "DELEGATION", 
-                         general_relation_properties)
-                            
-                # Add function relationship to the person
-                #    unique function relation id
-                function_relation_id = f"{org_code}_{display_function}"
-                relationship_properties = {
-                    'id': function_relation_id,
-                    'name': employee['display_function_group']
-                }
-                #if role.get('websites'):
-                #    relationship_properties["website"] = json.dumps(role['websites'])
+            db.add_node(LABEL_FUNCTION, general_function_properties)
+            db.add_relationship(
+                 org_oid, 
+                 function_id, 
+                 "DELEGATION", 
+                 general_relation_properties)
+                    
+        # Add function relationship to the person
+        #    unique function relation id
+        function_relation_id = f"{org_code}_{display_function}"
+        relationship_properties = {
+            'id': function_relation_id,
+            'name': employee['display_function_group']
+        }
+        #if role.get('websites'):
+        #    relationship_properties["website"] = json.dumps(role['websites'])
 
-                db.add_relationship_if_not_exists(
-                    function_id, 
-                    person_id, 
-                    "ROLE", 
-                    relationship_properties
-                )
+        db.add_relationship_if_not_exists(
+            function_id, 
+            person_id, 
+            "ROLE", 
+            relationship_properties
+        )
 
-def add_people_to_org_einheit(org_oid, org_code):
+def add_people_to_org(org_oid, org_code):
 
-    api_url = get_api_url_orgunit_id(org_oid, persons=True, recursive=True, intern=True)
-    orgunit_data = fetch_data_from_api(api_url, {"oid": org_oid})
+    api_url = get_api_url_orgunit_oid(org_oid, persons=True, recursive=True, intern=True)
+    orgunit_data = fetch_data_from_api(api_url)
     employees = orgunit_data.get('employees', [])
     
     for employee in employees:
@@ -150,61 +146,62 @@ def add_org_nodes(faculty_data):
             db.add_node(LABEL_ORG, node_data)
 
 def add_faculties_to_graph(raw_data):
-    orgs = raw_data.get('children', [])[6:]
+    orgs = raw_data.get('children', [])
     for faculty in orgs:
         fac_code = clean_symbols(faculty.get('code', ''))
         fac_id = faculty.get('oid', '')
-        faculty_data = fetch_data_from_api(get_api_url_orgunit_id(faculty.get('oid', '')))
+        faculty_data = fetch_data_from_api(get_api_url_orgunit_oid(fac_id))
         print(f"{faculty_data.get('name_en', '')}")
         if not faculty_data:
             continue
         add_org_nodes(faculty_data)
-        add_people_to_org_einheit(fac_id, fac_code)
+        add_people_to_org(fac_id, fac_code)
 
         if "child_orgs_refs" in faculty_data:
             for institution in faculty_data.get('child_orgs_refs', []):   
                 inst_code = clean_symbols(institution.get('code', ''))
-                inst_id = institution.get('oid', '')
-                institution_data = fetch_data_from_api(get_api_url_orgunit_id(inst_id))
+                inst_oid = institution.get('oid', '')
+                institution_data = fetch_data_from_api(get_api_url_orgunit_oid(inst_oid))
                 print(f"  {institution.get('name_en', '')}")
                 if institution_data:  
                     add_org_nodes(institution_data)
-                    db.add_relationship(fac_id, inst_id, "HAS_INSTITUTION")
-                    add_people_to_org_einheit(inst_id, inst_code)
+                    db.add_relationship(fac_id, inst_oid, "HAS_INSTITUTION")
+                    add_people_to_org(inst_oid, inst_code)
 
                 if "child_orgs_refs" in institution_data:
                     for department in institution_data.get('child_orgs_refs', []):
                         dep_code = clean_symbols(department.get('code', ''))
-                        dep_id = department.get('oid', '')
-                        department_data = fetch_data_from_api(get_api_url_orgunit_id(dep_id))
+                        dep_oid = department.get('oid', '')
+                        department_data = fetch_data_from_api(get_api_url_orgunit_oid(dep_oid))
                         print(f"    {department.get('name_en', '')}")
                         if department_data:
                             add_org_nodes(department_data)
-                            db.add_relationship(inst_id, dep_id, "HAS_DEPARTMENT")
-                            add_people_to_org_einheit(dep_id, dep_code)
+                            db.add_relationship(inst_oid, dep_oid, "HAS_DEPARTMENT")
+                            add_people_to_org(dep_oid, dep_code)
 
-                        if "child_orgs_refs" in department_data:
+                        if department_data and "child_orgs_refs" in department_data:
                             for research_group in department_data.get('child_orgs_refs', []):
                                 rg_code = clean_symbols(research_group.get('code', ''))
-                                rg_id = research_group.get('oid', '')
-                                research_group_data = fetch_data_from_api(get_api_url_orgunit_id(rg_id))
+                                rg_oid = research_group.get('oid', '')
+                                research_group_data = fetch_data_from_api(get_api_url_orgunit_oid(rg_oid))
                                 print(f"      {research_group.get('name_en', '')}")
                                 if research_group_data:
                                     add_org_nodes(research_group_data)
-                                    db.add_relationship(dep_id, rg_id, "HAS_RESEARCH_GROUP")
-                                    add_people_to_org_einheit(rg_id, rg_code)
+                                    db.add_relationship(dep_oid, rg_oid, "HAS_RESEARCH_GROUP")
+                                    add_people_to_org(rg_oid, rg_code)
 
-
-raw_data = fetch_data_from_api(api_url_organigram.format())
+if not db.is_database_running():
+    print("Neo4j database is not running.")
+    exit(1)
+else:
+    print("Neo4j database is running.")
+    
+raw_data = fetch_data_from_api(get_api_url_organigram().format())
 start_time = time.time()
-
 db.clear_database()
 print("Database cleared.")
-
 print("Adding faculties to graph...")
-
 add_faculties_to_graph(raw_data)
-
 end = time.time()
 
 print("Time taken in hh:mm:ss:", time.strftime("%H:%M:%S", time.gmtime(end - start_time)))

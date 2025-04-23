@@ -151,3 +151,16 @@ class Neo4jDatabase:
         }   
         with self.driver.session() as session:
             session.run(query, **params)
+
+    def is_database_running(self):
+        """
+        Check if the Neo4j database is running.
+        :return: True if the database is running, False otherwise
+        """
+        try:
+            with self.driver.session() as session:
+                session.run("RETURN 1")
+            return True
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            return False
