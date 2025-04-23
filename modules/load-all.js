@@ -1,4 +1,5 @@
 export const entry = {
+  title: "Load All",
   parameters: [],
   onExecute: async (graph, change) => {
     const data = await (
@@ -46,7 +47,9 @@ export const entry = {
     for (const belongsTo of data.edges.r) {
       if (!graph.hasNode(belongsTo.start)) continue;
       if (!graph.hasNode(belongsTo.end)) continue;
-      graph.mergeEdge(belongsTo.start, belongsTo.end);
+      graph.mergeEdge(belongsTo.start, belongsTo.end, {
+        size: 1,
+      });
     }
 
     change();

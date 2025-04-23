@@ -1,13 +1,8 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect } from "react";
 import Graph from "graphology";
-import {
-  SigmaContainer,
-  useLoadGraph,
-  useRegisterEvents,
-  useSigma,
-} from "@react-sigma/core";
+import { SigmaContainer, useLoadGraph } from "@react-sigma/core";
 import "@react-sigma/core/lib/style.css";
-import useGraph, { StateGraph } from "../../state/useGraph";
+import useGraph, { StateGraph } from "../../state/use-graph";
 import { useWorkerLayoutForceAtlas2 } from "@react-sigma/layout-forceatlas2";
 
 const sigmaStyle = { height: "100vh", width: "100vw" };
@@ -15,9 +10,13 @@ const sigmaStyle = { height: "100vh", width: "100vw" };
 const Force: FC = () => {
   const { start, stop } = useWorkerLayoutForceAtlas2({
     settings: {
-      gravity: 0.1,
-      slowDown: 0.8,
+      linLogMode: true,
+      outboundAttractionDistribution: false,
+      scalingRatio: 5,
+      gravity: 10,
+      slowDown: 100,
       barnesHutOptimize: true,
+      barnesHutTheta: 0.6,
     },
   });
   const lastChanged = useGraph((state: StateGraph) => state.lastChanged);
@@ -29,6 +28,7 @@ const Force: FC = () => {
 
   useEffect(() => {
     start();
+    setTimeout(() => stop(), 10_000);
   }, [lastChanged]);
 
   return null;

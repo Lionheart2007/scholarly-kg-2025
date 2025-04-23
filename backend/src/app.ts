@@ -85,10 +85,13 @@ app.post("/data", async (req: Request, res: Response) => {
       const edges_for_value: any[] = [];
       result.records
         .filter((r) => r.has(value as string))
+        .flatMap((r) => {
+          return r.get(value as string);
+        })
         .map((r) => ({
-          start: r.get(value as string).start.toString(),
-          end: r.get(value as string).end.toString(),
-          type: r.get(value as string).type,
+          start: r.start.toString(),
+          end: r.end.toString(),
+          type: r.type,
         }))
         .forEach((record) => {
           edges_for_value.push(record);

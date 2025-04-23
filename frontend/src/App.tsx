@@ -13,12 +13,14 @@ function App() {
           !menuIsVisible ? "-translate-x-full" : ""
         }`}
       >
-        <button
+        <div
           onClick={() => setMenuIsVisible((prev) => !prev)}
-          className="absolute right-0 bg-white p-2 translate-x-[99%] border border-l-0 rounded-r-lg border-gray-300 translate-y-2 flex items-center"
+          className="absolute cursor-pointer right-0 group bg-white p-2 translate-x-[99%] border border-l-0 rounded-r-lg border-gray-300 translate-y-4 flex items-center"
         >
-          <span className="material-symbols-rounded text-gray-400">menu</span>
-        </button>
+          <span className="material-symbols-rounded text-gray-300 transition-colors group-hover:text-gray-500">
+            menu
+          </span>
+        </div>
         <SideMenu></SideMenu>
       </div>
       <GraphView></GraphView>;

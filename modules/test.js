@@ -1,5 +1,5 @@
 export const entry = {
-  entryTitle: "Just a test",
+  title: "Just a Test",
   onExecute: (graph, change) => {
     graph.clear();
     graph.addNode(Math.random() * 1000, {

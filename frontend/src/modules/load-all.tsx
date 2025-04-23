@@ -1,4 +1,4 @@
-import useGraph, { StateGraph } from "../state/useGraph";
+import useGraph, { StateGraph } from "../state/use-graph";
 
 const LoadFaculties = () => {
   const graph = useGraph((state: StateGraph) => state.graph);

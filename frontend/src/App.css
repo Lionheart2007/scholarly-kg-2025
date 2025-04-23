@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  input {
+    @apply border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-transparent focus:border-blue-400;
+  }
+
+  button {
+    @apply py-1 rounded-md px-2 transition-colors border-1 border-gray-300 hover:bg-gray-100 cursor-pointer;
+  }
+}
