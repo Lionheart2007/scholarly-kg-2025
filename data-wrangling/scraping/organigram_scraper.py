@@ -6,6 +6,7 @@ from neo4j_database_operations import *
 import re
 import time
 import json
+import uuid
 
 load_dotenv()
 
@@ -67,81 +68,88 @@ def remove_umlauts(text):
     label = text.translate(trans_table)
     return label
 
-def process_employee(employee, org_oid, org_code):  
-        """
-        Processes each employee by fetching their data and adding them to the database.
-        """
-        person_id = employee['oid']
+def process_person(person, org_oid, org_code):  
+    """
+    Processes each employee by fetching their data and adding them to the database.
+    """
+    person_id = person['oid']
 
-        if not person_id or person_id == 0 or person_id is None:
-            print(f"Person ID not found for employee: {employee['first_name']} {employee['last_name']}")
-            # stop processing this employee if something is wrong
-            return 
-        
-        fetched_person_data = fetch_data_from_api(get_api_url_person_id(person_id)) 
-        
-        person_properties = {
-            "id": fetched_person_data.get('oid'),
-            "first_name": fetched_person_data.get('first_name'),
-            "last_name": fetched_person_data.get('last_name'),
-            "preceding_titles": fetched_person_data.get('preceding_titles'),
-            "postpositioned_titles": fetched_person_data.get('postpositioned_titles'),
-            "picture_link": fetched_person_data.get('picture_uri'),
-            "phone_number": fetched_person_data.get('main_phone_number'),
-            "email": fetched_person_data.get('main_email'),
-        }
+    if not person_id:
+        tiss_id = person.get('tiss_id', None)
+        if not tiss_id:
+            print(f"Entity cannot be processed, no tiss_id found for {person}")
+            return
+        fetched_person_data = fetch_data_from_api(get_api_url_person_id(tiss_id, intern=True))
+        if not fetched_person_data:
+            print(f"Entity cannot be processed, no data found for {person}")
+            return
+        fetched_person_data['oid'] = str(uuid.uuid4())
+        person_id = fetched_person_data.get('oid')
+    else:
+        fetched_person_data = fetch_data_from_api(get_api_url_person_oid(person_id, intern=True)) 
 
-        # Initial add none existing person
-        if not db.node_exists(person_id):
-            db.add_node(LABEL_PERSON, person_properties)
-                        
-        function_tiss_id = employee.get('function_tiss_id', None)
-        display_function = employee.get('display_function', None)
-    
-        function_group_tiss_id = employee.get('function_group_tiss_id', None)
-        display_function_group = employee.get('display_function_group', None)
-    
-        # composite key for the function
-        function_id = (f"{org_code}_{display_function}".replace(" ", "_") if display_function else None)
-    
-        # Add function node if it doesn't exist
-        if not db.node_exists(function_id):
-            general_function_properties = {
-                "id": function_id,
-                "abbreviation": function_group_tiss_id,
-                "name": display_function_group,
-            }
-    
-            general_relation_properties = {
-                "display_function": display_function,
-                "function_tiss_id": function_tiss_id,
-            }
-    
-            db.add_node(LABEL_FUNCTION, general_function_properties)
-            db.add_relationship(
-                 org_oid, 
-                 function_id, 
-                 "DELEGATION", 
-                 general_relation_properties)
+    person_properties = {
+        "id": fetched_person_data.get('oid'),
+        "first_name": fetched_person_data.get('first_name'),
+        "last_name": fetched_person_data.get('last_name'),
+        "preceding_titles": fetched_person_data.get('preceding_titles'),
+        "postpositioned_titles": fetched_person_data.get('postpositioned_titles'),
+        "picture_link": fetched_person_data.get('picture_uri'),
+        "phone_number": fetched_person_data.get('main_phone_number'),
+        "email": fetched_person_data.get('main_email'),
+    }
+
+    # Initial add none existing person
+    if not db.node_exists(person_id):
+        db.add_node(LABEL_PERSON, person_properties)
                     
-        # Add function relationship to the person
-        #    unique function relation id
-        function_relation_id = f"{org_code}_{display_function}"
-        relationship_properties = {
-            'id': function_relation_id,
-            'name': employee['display_function_group']
-        }
-        if employee.get('websites'):
-            relationship_properties["website"] = json.dumps(employee['websites'])
-        if employee.get('other_emails'):
-            relationship_properties["other_emails"] = json.dumps(employee['other_emails'])
+    function_tiss_id = person.get('function_tiss_id', None)
+    display_function = person.get('display_function', None)
 
-        db.add_relationship_if_not_exists(
-            function_id, 
-            person_id, 
-            "ROLE", 
-            relationship_properties
-        )
+    function_group_tiss_id = person.get('function_group_tiss_id', None)
+    display_function_group = person.get('display_function_group', None)
+
+    # composite key for the function
+    function_id = (f"{org_code}_{display_function}".replace(" ", "_") if display_function else None)
+
+    # Add function node if it doesn't exist
+    if not db.node_exists(function_id):
+        general_function_properties = {
+            "id": function_id,
+            "abbreviation": function_group_tiss_id,
+            "name": display_function_group,
+        }
+
+        general_relation_properties = {
+            "display_function": display_function,
+            "function_tiss_id": function_tiss_id,
+        }
+
+        db.add_node(LABEL_FUNCTION, general_function_properties)
+        db.add_relationship(
+             org_oid, 
+             function_id, 
+             "DELEGATION", 
+             general_relation_properties)
+                
+    # Add function relationship to the person
+    #    unique function relation id
+    function_relation_id = f"{org_code}_{display_function}"
+    relationship_properties = {
+        'id': function_relation_id,
+        'name': person['display_function_group']
+    }
+    if person.get('websites'):
+        relationship_properties["website"] = json.dumps(person['websites'])
+    if person.get('other_emails'):
+        relationship_properties["other_emails"] = json.dumps(person['other_emails'])
+
+    db.add_relationship_if_not_exists(
+        function_id, 
+        person_id, 
+        "ROLE", 
+        relationship_properties
+    )
 
 def add_people_to_org(org_oid, org_code):
 
@@ -156,24 +164,29 @@ def add_people_to_org(org_oid, org_code):
         employees.append(manager)
     
     for employee in employees:
-        process_employee(employee, org_oid, org_code)
+        process_person(employee, org_oid, org_code)
 
 def add_org_nodes(faculty_data):
-            node_data = {
-                "id": faculty_data['oid'],
-                "id_number": faculty_data['code'],
-                "name": faculty_data['name_en'],
-                "phone_numbers": faculty_data.get('phone_numbers', []),
-                "website": json.dumps(faculty_data.get('websites', [])) if faculty_data.get('websites') else None,
-                "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else (json.dumps(faculty_data.get('emails', [])) if faculty_data.get('emails') else None),
-                "address": "; ".join([
-                    f"{remove_umlauts(address.get('street', ''))}, {address.get('zip_code', '')} {remove_umlauts(address.get('city', ''))}, {remove_umlauts(address.get('country', ''))}, c/o {address.get('co', '')}".strip(", ")
-                    for address in faculty_data.get('addresses', [])
-                ]) if faculty_data.get('addresses') else None
-            }
-            # Remove keys with None values
-            node_data = {k: v for k, v in node_data.items() if v is not None}
-            db.add_node(LABEL_ORG, node_data)
+    node_data = {
+        "id": faculty_data['oid'],
+        "id_number": faculty_data['code'],
+        "name": faculty_data['name_en'],
+        "phone_numbers": faculty_data.get('phone_numbers', []),
+        "website": json.dumps(faculty_data.get('websites', [])) if faculty_data.get('websites') else None,
+        "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else (json.dumps(faculty_data.get('emails', [])) if faculty_data.get('emails') else None),
+        "address": "; ".join(
+            [
+                f"{remove_umlauts(address.get('street', '')) if address.get('street') else ''} "
+                f"{address.get('zip_code', '') if address.get('zip_code') else ''} "
+                f"{remove_umlauts(address.get('city', '')) if address.get('city') else ''} "
+                f"{remove_umlauts(address.get('country', '')) if address.get('country') else ''}"
+                f"{' c/o ' + address.get('co') if address.get('co') else ''}".strip()
+                for address in faculty_data.get('addresses', [])
+            ]) if faculty_data.get('addresses') else None
+    }
+    # Remove keys with None values
+    node_data = {k: v for k, v in node_data.items() if v is not None}
+    db.add_node(LABEL_ORG, node_data)
 
 def add_orgs_to_graph(raw_data):
     orgs = raw_data.get('children', [])
@@ -185,7 +198,7 @@ def add_orgs_to_graph(raw_data):
         org_id = org.get('oid', '')
         org_data = fetch_data_from_api(get_api_url_orgunit_oid(org_id))
 
-        print(f"{org_data.get('name_en', '')}")
+        print(f"    ADDED: {org_data.get('name_en', '')}")
         
         if not org_data:
             continue

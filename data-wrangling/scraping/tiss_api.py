@@ -25,12 +25,13 @@ api_url_orgunit_number_template = api_base_url + "/orgunit/v23/number/{orgunit_n
 
 def get_api_url_orgunit_number(orgunit_number):
     return api_url_orgunit_number_template.format(orgunit_number=orgunit_number)
-api_url_person_id_template = api_base_url + "/person/v23/oid/{person_id}?intern={intern}?locale=de"
+
+api_url_person_id_template = api_base_url + "/person/v23/id/{person_id}?intern={intern}"
 
 def get_api_url_person_id(person_id, intern=True):
     return api_url_person_id_template.format(person_id=person_id, intern=intern)
 
-api_url_person_oid_template = api_base_url + "/person/v23/oid/{person_oid}?intern={intern}?locale=de"
+api_url_person_oid_template = api_base_url + "/person/v23/oid/{person_oid}?intern={intern}"
 
 def get_api_url_person_oid(person_oid, intern=True):
     return api_url_person_oid_template.format(person_oid=person_oid, intern=intern)
