@@ -17,6 +17,30 @@ LABEL_PERSON = "Person"
 LABEL_ORG = "Organisation"
 LABEL_FUNCTION = "Function"
 
+FACULTY_CODE_LIST = ["E100", "E130", "E150", "E180", "E200", "E250", "E300", "E350"]
+DEANERY_CODE_LIST = ["E149-01", "E199-01", "E299-01", "E129-01", "E399-01", "E249-01"]
+
+CENTRAL_DEVISIONS_CODE_LIST = ["E600", "E610", "E620", "E630", "E640"]
+SENIOR_GOV_CODE_LIST = ["E901", "E902", "E903"]
+
+TYPE_OOG = "OOG" # Senior Governance
+
+TYPE_REK = "REK" # Rector
+TYPE_VIR = "VIR" # Vice-Rector
+
+TYPE_ABT = "ABT" # Department
+TYPE_FAB = "FAB" # Service Unit
+
+TYPE_FAK = "FAK" # Faculty
+TYPE_INS = "INS" # Institution
+TYPE_FOB = "FOB" # Department
+TYPE_FOG = "FOG" # Research Group
+TYPE_DEK = "DEK" # Deanery
+
+TYPE_GRU = "GRU"
+TYPE_SFO = "SFO" 
+TYPE_SON = "SON"
+
 db = Neo4jDatabase(NEO4J_URI, (NEO4J_USERNAME, NEO4J_PASSWORD))
 
 def fetch_data_from_api(api_url, params=None):
@@ -55,8 +79,6 @@ def process_employee(employee, org_oid, org_code):
         """
         person_id = employee['oid']
         fetched_person_data = fetch_data_from_api(get_api_url_person_id(person_id)) 
-
-        print(f"{employee['first_name']} {employee['last_name']}")
         
         person_properties = {
             "id": employee['oid'],
@@ -145,38 +167,56 @@ def add_org_nodes(faculty_data):
             node_data = {k: v for k, v in node_data.items() if v is not None}
             db.add_node(LABEL_ORG, node_data)
 
-def add_faculties_to_graph(raw_data):
+def add_orgs_to_graph(raw_data):
     orgs = raw_data.get('children', [])
-    for faculty in orgs:
-        fac_code = clean_symbols(faculty.get('code', ''))
-        fac_id = faculty.get('oid', '')
-        faculty_data = fetch_data_from_api(get_api_url_orgunit_oid(fac_id))
-        print(f"{faculty_data.get('name_en', '')}")
-        if not faculty_data:
+    # orgs = orgs[::-1]
+    orgs = orgs[13:13+1]  # only faculties
+    for org in orgs:
+        org_code = clean_symbols(org.get('code', ''))
+        org_id = org.get('oid', '')
+        org_data = fetch_data_from_api(get_api_url_orgunit_oid(org_id))
+        print(f"{org_data.get('name_en', '')}")
+        if not org_data:
             continue
-        add_org_nodes(faculty_data)
-        add_people_to_org(fac_id, fac_code)
+        add_org_nodes(org_data)
+        add_people_to_org(org_id, org_code)
 
-        if "child_orgs_refs" in faculty_data:
-            for institution in faculty_data.get('child_orgs_refs', []):   
+        if "child_orgs_refs" in org_data:
+            for institution in org_data.get('child_orgs_refs', []):   
                 inst_code = clean_symbols(institution.get('code', ''))
                 inst_oid = institution.get('oid', '')
                 institution_data = fetch_data_from_api(get_api_url_orgunit_oid(inst_oid))
                 print(f"  {institution.get('name_en', '')}")
                 if institution_data:  
+                    inst_type = institution_data.get('type', '')
+
+                    relation_label = \
+                        "RESEARCH" if inst_type == TYPE_INS else \
+                        "SUPPORT_BRANCH" if inst_type == TYPE_OOG else \
+                        "SUPPORT"
+
                     add_org_nodes(institution_data)
-                    db.add_relationship(fac_id, inst_oid, "HAS_INSTITUTION")
+                    db.add_relationship(org_id, inst_oid, relation_label)
                     add_people_to_org(inst_oid, inst_code)
 
                 if "child_orgs_refs" in institution_data:
                     for department in institution_data.get('child_orgs_refs', []):
+                        dep_type = department.get('type', '')
                         dep_code = clean_symbols(department.get('code', ''))
                         dep_oid = department.get('oid', '')
                         department_data = fetch_data_from_api(get_api_url_orgunit_oid(dep_oid))
                         print(f"    {department.get('name_en', '')}")
                         if department_data:
                             add_org_nodes(department_data)
-                            db.add_relationship(inst_oid, dep_oid, "HAS_DEPARTMENT")
+                            if dep_type == TYPE_FOB:
+                                db.add_relationship(inst_oid, dep_oid, "BRANCH")
+                            elif dep_type == TYPE_OOG:
+                                db.add_relationship(inst_oid, dep_oid, "SUPPORT_BRANCH")
+                            elif dep_type == TYPE_DEK:
+                                db.add_relationship(inst_oid, org_id, "GOVERNANCE")
+                            else: # should not happen
+                                db.add_relationship(inst_oid, dep_oid, "SUPPORT")
+
                             add_people_to_org(dep_oid, dep_code)
 
                         if department_data and "child_orgs_refs" in department_data:
@@ -187,7 +227,7 @@ def add_faculties_to_graph(raw_data):
                                 print(f"      {research_group.get('name_en', '')}")
                                 if research_group_data:
                                     add_org_nodes(research_group_data)
-                                    db.add_relationship(dep_oid, rg_oid, "HAS_RESEARCH_GROUP")
+                                    db.add_relationship(dep_oid, rg_oid, "COMPONENT")
                                     add_people_to_org(rg_oid, rg_code)
 
 if not db.is_database_running():
@@ -201,7 +241,7 @@ start_time = time.time()
 db.clear_database()
 print("Database cleared.")
 print("Adding faculties to graph...")
-add_faculties_to_graph(raw_data)
+add_orgs_to_graph(raw_data)
 end = time.time()
 
 print("Time taken in hh:mm:ss:", time.strftime("%H:%M:%S", time.gmtime(end - start_time)))
