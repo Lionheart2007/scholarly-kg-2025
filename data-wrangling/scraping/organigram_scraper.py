@@ -171,19 +171,30 @@ def add_org_nodes(faculty_data):
         "id": faculty_data['oid'],
         "id_number": faculty_data['code'],
         "name": faculty_data['name_en'],
-        "phone_numbers": faculty_data.get('phone_numbers', []),
-        "website": json.dumps(faculty_data.get('websites', [])) if faculty_data.get('websites') else None,
-        "emails": faculty_data['emails'][0] if len(faculty_data.get('emails', [])) == 1 else (json.dumps(faculty_data.get('emails', [])) if faculty_data.get('emails') else None),
-        "address": "; ".join(
+    }
+
+    if faculty_data.get('phone_numbers'):
+        node_data["phone_numbers"] = [phone for phone in faculty_data['phone_numbers'] if phone]
+
+    if faculty_data.get('websites'):
+        node_data["websites"] = [website.get('uri') for website in faculty_data['websites'] if website.get('uri')]
+
+    if faculty_data.get('emails'):
+        node_data["emails"] = [email for email in faculty_data['emails'] if email]
+
+    if faculty_data.get('addresses'):
+        node_data["address"] = "; ".join(
             [
                 f"{remove_umlauts(address.get('street', '')) if address.get('street') else ''} "
                 f"{address.get('zip_code', '') if address.get('zip_code') else ''} "
                 f"{remove_umlauts(address.get('city', '')) if address.get('city') else ''} "
                 f"{remove_umlauts(address.get('country', '')) if address.get('country') else ''}"
                 f"{' c/o ' + address.get('co') if address.get('co') else ''}".strip()
-                for address in faculty_data.get('addresses', [])
-            ]) if faculty_data.get('addresses') else None
-    }
+                for address in faculty_data['addresses']
+            ]
+        )
+
+
     # Remove keys with None values
     node_data = {k: v for k, v in node_data.items() if v is not None}
     db.add_node(LABEL_ORG, node_data)
