@@ -17,12 +17,6 @@ LABEL_PERSON = "Person"
 LABEL_ORG = "Organisation"
 LABEL_FUNCTION = "Function"
 
-FACULTY_CODE_LIST = ["E100", "E130", "E150", "E180", "E200", "E250", "E300", "E350"]
-DEANERY_CODE_LIST = ["E149-01", "E199-01", "E299-01", "E129-01", "E399-01", "E249-01"]
-
-CENTRAL_DEVISIONS_CODE_LIST = ["E600", "E610", "E620", "E630", "E640"]
-SENIOR_GOV_CODE_LIST = ["E901", "E902", "E903"]
-
 TYPE_OOG = "OOG" # Senior Governance
 
 TYPE_REK = "REK" # Rector
@@ -78,17 +72,23 @@ def process_employee(employee, org_oid, org_code):
         Processes each employee by fetching their data and adding them to the database.
         """
         person_id = employee['oid']
+
+        if not person_id or person_id == 0 or person_id is None:
+            print(f"Person ID not found for employee: {employee['first_name']} {employee['last_name']}")
+            # stop processing this employee if something is wrong
+            return 
+        
         fetched_person_data = fetch_data_from_api(get_api_url_person_id(person_id)) 
         
         person_properties = {
-            "id": employee['oid'],
-            "first_name": employee['first_name'],
-            "last_name": employee['last_name'],
-            "preceding_titles": employee['preceding_titles'],
-            "postpositioned_titles": employee['postpositioned_titles'],
-            "picture_link": employee['picture_uri'],
-            "phone_number": employee.get('phone_numbers', [None])[0],
-            "email": employee['main_email'],
+            "id": fetched_person_data.get('oid'),
+            "first_name": fetched_person_data.get('first_name'),
+            "last_name": fetched_person_data.get('last_name'),
+            "preceding_titles": fetched_person_data.get('preceding_titles'),
+            "postpositioned_titles": fetched_person_data.get('postpositioned_titles'),
+            "picture_link": fetched_person_data.get('picture_uri'),
+            "phone_number": fetched_person_data.get('main_phone_number'),
+            "email": fetched_person_data.get('main_email'),
         }
 
         # Initial add none existing person
@@ -131,8 +131,10 @@ def process_employee(employee, org_oid, org_code):
             'id': function_relation_id,
             'name': employee['display_function_group']
         }
-        #if role.get('websites'):
-        #    relationship_properties["website"] = json.dumps(role['websites'])
+        if employee.get('websites'):
+            relationship_properties["website"] = json.dumps(employee['websites'])
+        if employee.get('other_emails'):
+            relationship_properties["other_emails"] = json.dumps(employee['other_emails'])
 
         db.add_relationship_if_not_exists(
             function_id, 
@@ -146,6 +148,12 @@ def add_people_to_org(org_oid, org_code):
     api_url = get_api_url_orgunit_oid(org_oid, persons=True, recursive=True, intern=True)
     orgunit_data = fetch_data_from_api(api_url)
     employees = orgunit_data.get('employees', [])
+
+    manager = orgunit_data.get('manager', None)
+    if manager:
+        manager['display_function_group'] = 'Manager'
+        manager['display_function'] = 'Manager'
+        employees.append(manager)
     
     for employee in employees:
         process_employee(employee, org_oid, org_code)
@@ -169,13 +177,16 @@ def add_org_nodes(faculty_data):
 
 def add_orgs_to_graph(raw_data):
     orgs = raw_data.get('children', [])
-    # orgs = orgs[::-1]
-    orgs = orgs[13:13+1]  # only faculties
+    # Reverse order because of constraint SUPPORT_BRANCH
+    orgs = orgs[::-1]
+    
     for org in orgs:
         org_code = clean_symbols(org.get('code', ''))
         org_id = org.get('oid', '')
         org_data = fetch_data_from_api(get_api_url_orgunit_oid(org_id))
+
         print(f"{org_data.get('name_en', '')}")
+        
         if not org_data:
             continue
         add_org_nodes(org_data)
@@ -186,7 +197,6 @@ def add_orgs_to_graph(raw_data):
                 inst_code = clean_symbols(institution.get('code', ''))
                 inst_oid = institution.get('oid', '')
                 institution_data = fetch_data_from_api(get_api_url_orgunit_oid(inst_oid))
-                print(f"  {institution.get('name_en', '')}")
                 if institution_data:  
                     inst_type = institution_data.get('type', '')
 
@@ -205,16 +215,16 @@ def add_orgs_to_graph(raw_data):
                         dep_code = clean_symbols(department.get('code', ''))
                         dep_oid = department.get('oid', '')
                         department_data = fetch_data_from_api(get_api_url_orgunit_oid(dep_oid))
-                        print(f"    {department.get('name_en', '')}")
                         if department_data:
                             add_org_nodes(department_data)
-                            if dep_type == TYPE_FOB:
+                            if dep_type == TYPE_DEK:
+                                db.add_relationship(org_id, dep_oid, "DEANERY")
+
+                            elif dep_type == TYPE_FOB:
                                 db.add_relationship(inst_oid, dep_oid, "BRANCH")
                             elif dep_type == TYPE_OOG:
                                 db.add_relationship(inst_oid, dep_oid, "SUPPORT_BRANCH")
-                            elif dep_type == TYPE_DEK:
-                                db.add_relationship(inst_oid, org_id, "GOVERNANCE")
-                            else: # should not happen
+                            else:
                                 db.add_relationship(inst_oid, dep_oid, "SUPPORT")
 
                             add_people_to_org(dep_oid, dep_code)
@@ -222,26 +232,29 @@ def add_orgs_to_graph(raw_data):
                         if department_data and "child_orgs_refs" in department_data:
                             for research_group in department_data.get('child_orgs_refs', []):
                                 rg_code = clean_symbols(research_group.get('code', ''))
+                                rg_type = research_group.get('type', '')
                                 rg_oid = research_group.get('oid', '')
                                 research_group_data = fetch_data_from_api(get_api_url_orgunit_oid(rg_oid))
-                                print(f"      {research_group.get('name_en', '')}")
+
                                 if research_group_data:
                                     add_org_nodes(research_group_data)
                                     db.add_relationship(dep_oid, rg_oid, "COMPONENT")
+                                        
                                     add_people_to_org(rg_oid, rg_code)
 
-if not db.is_database_running():
-    print("Neo4j database is not running.")
-    exit(1)
+if db.is_database_running():
+    db.clear_database()
+    print("Neo4j database is running and has been cleared.")
 else:
-    print("Neo4j database is running.")
+    print("Something went wrong with the Neo4j database connection.")
+    exit()
     
 raw_data = fetch_data_from_api(get_api_url_organigram().format())
+
 start_time = time.time()
-db.clear_database()
-print("Database cleared.")
-print("Adding faculties to graph...")
+
 add_orgs_to_graph(raw_data)
+
 end = time.time()
 
 print("Time taken in hh:mm:ss:", time.strftime("%H:%M:%S", time.gmtime(end - start_time)))
