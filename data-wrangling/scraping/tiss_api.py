@@ -16,10 +16,10 @@ api_url_orgunit_id_template = api_base_url + "/orgunit/v23/id/{orgunit_id}"
 def get_api_url_orgunit_id(orgunit_id):
     return api_url_orgunit_id_template.format(orgunit_id=orgunit_id)
 
-api_url_orgunit_oid_template = api_base_url + "/orgunit/v23/oid/{orgunit_code}?persons={persons}?recursive={recursive}?intern={intern}"
+api_url_orgunit_oid_template = api_base_url + "/orgunit/v23/oid/{orgunit_oid}?persons={persons}&locale={locale}"
 
-def get_api_url_orgunit_oid(orgunit_code, intern=True, persons=True, recursive=True):
-    return api_url_orgunit_oid_template.format(orgunit_code=orgunit_code, persons=persons, recursive=recursive, intern=intern)
+def get_api_url_orgunit_oid(orgunit_oid, intern=True, persons=True, recursive=False, locale="en"):
+    return api_url_orgunit_oid_template.format(orgunit_oid=orgunit_oid, persons=persons, recursive=recursive, intern=intern, locale=locale)
 
 api_url_orgunit_number_template = api_base_url + "/orgunit/v23/number/{orgunit_number}"
 

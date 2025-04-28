@@ -15,23 +15,48 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 NEO4J_URI = os.getenv("NEO4J_URI")
 
 LABEL_PERSON = "Person"
-LABEL_ORG = "Organisation"
 LABEL_FUNCTION = "Function"
 
-TYPE_OOG = "OOG" # Senior Governance
+LABEL_FACULTY = "Faculty"
+LABEL_INSTITUTION = "Institute"
+LABEL_DEPARTMENT = "Department"
+LABEL_RESEARCH_UNIT = "ResearchUnit"
+LABEL_RESEARCH_GROUP = "ResearchGroup"
+LABEL_DEANERY = "Deanery"
+LABEL_SERVICE_DEP = "ServiceDepartment"
+LABEL_SERVICE_UNIT = "ServiceUnit"
+LABEL_SERVICE_GROUP = "ServiceGroup"
+LABEL_CENTRAL_DIV = "CentralDivision"
+LABEL_SENIOR_GOV = "SeniorGovBody"
+LABEL_SPECIAL_BODY = "SpecialBody"
+LABEL_OTHER = "OtherInstitution"
 
-TYPE_REK = "REK" # Rector
-TYPE_VIR = "VIR" # Vice-Rector
+LABEL_STORE = {
+      "FAK": "Faculty", 
+      "INS": "Institute",
+      "FOB": "ResearchUnit",
+      "FOG": "ResearchGroup",
+      "ABT": "ServiceDepartment",
+      "FAB": "ServiceUnit",
+      "FAG": "ServiceGroup",
+      "DEK": "Deanery",
+      "OOG": "SeniorGovBody",
+      "REK": "SeniorGovBody",
+      "SON": "OtherInstitution",
+      "GKI": "SpecialBody",
+      "VIR": "CentralDivision",
+  }
 
-TYPE_ABT = "ABT" # Department
-TYPE_FAB = "FAB" # Service Unit
-
-TYPE_FAK = "FAK" # Faculty
-TYPE_INS = "INS" # Institution
-TYPE_FOB = "FOB" # Department
-TYPE_FOG = "FOG" # Research Group
-TYPE_DEK = "DEK" # Deanery
-
+TYPE_OOG = "OOG"
+TYPE_REK = "REK"
+TYPE_VIR = "VIR"
+TYPE_ABT = "ABT"
+TYPE_FAB = "FAB"
+TYPE_FAK = "FAK"
+TYPE_INS = "INS"
+TYPE_FOB = "FOB"
+TYPE_FOG = "FOG"
+TYPE_DEK = "DEK"
 TYPE_GRU = "GRU"
 TYPE_SFO = "SFO" 
 TYPE_SON = "SON"
@@ -75,6 +100,7 @@ def process_person(person, org_oid, org_code):
     person_id = person['oid']
 
     if not person_id:
+        print(f"Entity cannot be processed, no person_id found for {person}")
         tiss_id = person.get('tiss_id', None)
         if not tiss_id:
             print(f"Entity cannot be processed, no tiss_id found for {person}")
@@ -153,7 +179,7 @@ def process_person(person, org_oid, org_code):
 
 def add_people_to_org(org_oid, org_code):
 
-    api_url = get_api_url_orgunit_oid(org_oid, persons=True, recursive=True, intern=True)
+    api_url = get_api_url_orgunit_oid(org_oid, persons=True, recursive=False, intern=True)
     orgunit_data = fetch_data_from_api(api_url)
     employees = orgunit_data.get('employees', [])
 
@@ -197,18 +223,18 @@ def add_org_nodes(faculty_data):
 
     # Remove keys with None values
     node_data = {k: v for k, v in node_data.items() if v is not None}
-    db.add_node(LABEL_ORG, node_data)
+    label_org = LABEL_STORE.get(faculty_data['type'], LABEL_OTHER)
+    db.add_node(label_org, node_data)
 
 def add_orgs_to_graph(raw_data):
     orgs = raw_data.get('children', [])
     # Reverse order because of constraint SUPPORT_BRANCH
     orgs = orgs[::-1]
-    
+
     for org in orgs:
         org_code = clean_symbols(org.get('code', ''))
         org_id = org.get('oid', '')
         org_data = fetch_data_from_api(get_api_url_orgunit_oid(org_id))
-
         print(f"    ADDED: {org_data.get('name_en', '')}")
         
         if not org_data:
@@ -220,6 +246,7 @@ def add_orgs_to_graph(raw_data):
             for institution in org_data.get('child_orgs_refs', []):   
                 inst_code = clean_symbols(institution.get('code', ''))
                 inst_oid = institution.get('oid', '')
+
                 institution_data = fetch_data_from_api(get_api_url_orgunit_oid(inst_oid))
                 if institution_data:  
                     inst_type = institution_data.get('type', '')
@@ -238,7 +265,11 @@ def add_orgs_to_graph(raw_data):
                         dep_type = department.get('type', '')
                         dep_code = clean_symbols(department.get('code', ''))
                         dep_oid = department.get('oid', '')
+  
+                        if dep_oid == 0:
+                            print(f"Entity cannot be processed, no dep_oid found for {department}")
                         department_data = fetch_data_from_api(get_api_url_orgunit_oid(dep_oid))
+
                         if department_data:
                             add_org_nodes(department_data)
                             if dep_type == TYPE_DEK:
@@ -259,7 +290,7 @@ def add_orgs_to_graph(raw_data):
                                 rg_type = research_group.get('type', '')
                                 rg_oid = research_group.get('oid', '')
                                 research_group_data = fetch_data_from_api(get_api_url_orgunit_oid(rg_oid))
-
+                               
                                 if research_group_data:
                                     add_org_nodes(research_group_data)
                                     db.add_relationship(dep_oid, rg_oid, "COMPONENT")
