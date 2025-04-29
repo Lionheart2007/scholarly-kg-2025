@@ -3,10 +3,10 @@ Activate venv:
 - Linux: source venv/bin/activate
 - Windows: ./venv/Scripts/activate
 Install requirements: pip install -r requirements.txt
-Run the script: python3 <filename>.py
+Run the script: python3 scraping/organigram_scraper.py
 
 Start docker with neo4j db: docker-compose up -d 
 Creates folder neo4j with subfolders config, data, logs, plugins
 Credentials can be found in the docker-compose.yml file
 
-See neo4j browser at: http://localhost:7474
+See neo4j browser at: http://localhost:7474/browser/preview/
