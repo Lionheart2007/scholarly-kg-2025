@@ -1,8 +1,8 @@
-import Graph from "graphology";
+import { Graph } from "@antv/g6";
 import { create } from "zustand";
 
 export type StateGraph = {
-  graph: Graph;
+  graph: Graph | undefined;
   lastChanged: Date;
   change: () => void;
   setGraph: (graph: Graph) => void;
@@ -10,7 +10,7 @@ export type StateGraph = {
 
 const useGraph = create<StateGraph>((set) => ({
   lastChanged: new Date(),
-  graph: new Graph(),
+  graph: undefined,
 
   change: () => set({ lastChanged: new Date() }),
   setGraph: (graph: Graph) => set({ graph: graph }),

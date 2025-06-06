@@ -18,7 +18,14 @@ export const IndividualParameter = (props: {
   const getName = () => `${props.entry}-${props.parameter.name}`;
 
   useEffect(() => {
+    if (parameters.has(getName())) {
+      setValue(parameters.get(getName()));
+    }
+  }, []);
+
+  useEffect(() => {
     const newErrors = [];
+
 
     if (props.parameter.constraints.required != undefined && !value)
       newErrors.push(`${props.parameter.name} is required.`);
@@ -62,6 +69,7 @@ export const IndividualParameter = (props: {
       <label className="text-xs font-bold">{props.parameter.name}</label>
       <input
         className="w-full"
+        value={value}
         onChange={(e) => {
           setValue(e.target.value);
         }}

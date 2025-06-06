@@ -47,14 +47,19 @@ app.post("/data", async (req: Request, res: Response) => {
     // Map results and remove duplicates
     const nodes: Map<string, any> = new Map();
     for (const [key, value] of Object.entries(req.body.node_mappings)) {
-      const nodes_with_duplicates = result.records.map((record) => {
-        const prepared = {
-          id: record.get(value as string).identity.toString(),
-          properties: record.get(value as string).properties,
-        };
+      const nodes_with_duplicates = result.records
+        .flatMap((record) => {
+          return record.get(value as string);
+        })
+        .map((node) => {
+          const prepared = {
+            id: node.identity.toString(),
+            properties: node.properties,
+            types: node.labels,
+          };
 
-        return prepared;
-      });
+          return prepared;
+        });
 
       nodes.set(
         key,

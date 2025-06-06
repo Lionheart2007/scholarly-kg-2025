@@ -23,7 +23,7 @@ function App() {
         </div>
         <SideMenu></SideMenu>
       </div>
-      <GraphView></GraphView>;
+      <GraphView></GraphView>
     </div>
   );
 }

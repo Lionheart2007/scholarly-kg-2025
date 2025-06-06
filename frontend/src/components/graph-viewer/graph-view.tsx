@@ -1,59 +1,51 @@
-import { FC, useEffect } from "react";
-import Graph from "graphology";
-import { SigmaContainer, useLoadGraph } from "@react-sigma/core";
+import { useEffect, useRef, useState } from "react";
 import "@react-sigma/core/lib/style.css";
 import useGraph, { StateGraph } from "../../state/use-graph";
-import { useWorkerLayoutForceAtlas2 } from "@react-sigma/layout-forceatlas2";
-
-const sigmaStyle = { height: "100vh", width: "100vw" };
-
-const Force: FC = () => {
-  const { start, stop } = useWorkerLayoutForceAtlas2({
-    settings: {
-      linLogMode: true,
-      outboundAttractionDistribution: false,
-      scalingRatio: 5,
-      gravity: 10,
-      slowDown: 100,
-      barnesHutOptimize: true,
-      barnesHutTheta: 0.6,
-    },
-  });
-  const lastChanged = useGraph((state: StateGraph) => state.lastChanged);
-  useEffect(() => {
-    start();
-
-    return () => stop();
-  }, [start, stop]);
-
-  useEffect(() => {
-    start();
-    setTimeout(() => stop(), 10_000);
-  }, [lastChanged]);
-
-  return null;
-};
-// Component that load the graph
-export const LoadGraph = () => {
-  const loadGraph = useLoadGraph();
-  const graph: Graph = useGraph((state: StateGraph) => state.graph);
-  const lastChanged = useGraph((state: StateGraph) => state.lastChanged);
-
-  useEffect(() => {
-    loadGraph(graph);
-  }, [loadGraph, graph, lastChanged]);
-
-  return null;
-};
+import { Graph } from "@antv/g6";
 
 // Component that display the graph
 export const GraphView = () => {
-  return (
-    <>
-      <SigmaContainer style={sigmaStyle}>
-        <LoadGraph />
-        <Force></Force>
-      </SigmaContainer>
-    </>
-  );
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const lastChanged = useGraph((state: StateGraph) => state.lastChanged);
+  const change = useGraph((state: StateGraph) => state.change);
+  const setGraph = useGraph((state: StateGraph) => state.setGraph);
+  const graph = useGraph((state: StateGraph) => state.graph);
+
+  useEffect(() => {
+    setGraph(
+      new Graph({
+        container: containerRef.current!,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        layout: {
+          type: "d3-force",
+          collide: {
+            strength: 0.5,
+          },
+        },
+        behaviors: [
+          "drag-canvas",
+          "zoom-canvas",
+          "drag-element-force",
+          {
+            key: "auto-adapt-label",
+            type: "auto-adapt-label",
+            padding: 0,
+            throttle: 200,
+          },
+        ],
+        plugins: [{ type: "grid-line", size: 50 }],
+      })
+    );
+    change();
+  }, []);
+
+  useEffect(() => {
+    if (!graph) return;
+
+    graph.render();
+  }, [lastChanged]);
+
+  return <div className="w-screen h-screen " ref={containerRef}></div>;
 };

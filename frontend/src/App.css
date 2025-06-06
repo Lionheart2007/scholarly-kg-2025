@@ -12,4 +12,8 @@
   button {
     @apply py-1 rounded-md px-2 transition-colors border-1 border-gray-300 hover:bg-gray-100 cursor-pointer;
   }
+
+  .pill {
+    @apply px-4 py-1 rounded-full  border-gray-300 hover:bg-gray-300 cursor-pointer transition-colors;
+  }
 }
